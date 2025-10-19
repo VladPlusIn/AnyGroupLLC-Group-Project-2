@@ -487,7 +487,13 @@ Resources:
             yum install -y httpd
             systemctl start httpd
             systemctl enable httpd
+            DB_HOST="${RDSInstance.Endpoint.Address}"
+            DB_USER="${MasterUsername}"
+            DB_PASS="${MasterUserPassword}"
+            echo "Connecting to MySQL at $DB_HOST..."
+            mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -e "SELECT NOW();" > /var/www/html/db_test_result.txt 2>&1
             echo "<h1>App Server (Tier 2) - AZ $(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)</h1>" > /var/www/html/index.html
+            echo "<pre>$(cat /var/www/html/db_test_result.txt)</pre>" >> /var/www/html/index.html
   AppAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
