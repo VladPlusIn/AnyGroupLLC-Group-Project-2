@@ -447,12 +447,24 @@ Resources:
           - !Ref WebServerSG
         UserData:
           Fn::Base64: !Sub |
-            #!/bin/bash -xe
-            amazon-linux-extras install -y lamp-mariadb10.2-php7.2 php7.2
-            yum install -y httpd
-            systemctl start httpd
-            systemctl enable httpd
-            echo "<h1>Web Server (Tier 1) - AZ $(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)</h1>" > /var/www/html/index.html
+             #!/bin/bash -xe
+              yum update -y
+              amazon-linux-extras install -y lamp-mariadb10.2-php7.2 php7.2
+              yum install -y httpd mod_proxy mod_proxy_http
+
+              systemctl start httpd
+              systemctl enable httpd
+
+              cat <<EOF > /etc/httpd/conf.d/static-proxy.conf
+              ProxyPass "/static/" "http://${StaticBucket}.s3.${AWS::Region}.amazonaws.com/static/"
+              ProxyPassReverse "/static/" "http://${StaticBucket}.s3.${AWS::Region}.amazonaws.com/static/"
+              EOF
+
+              echo "<h1>Web Server (Tier 1) - AZ \$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)</h1>" > /var/www/html/index.html
+              echo "<a href='/static/sample.jpg'>Static File from S3</a>" >> /var/www/html/index.html
+
+              systemctl restart httpd
+
   WebAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
@@ -588,14 +600,16 @@ Resources:
           - !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:${DBInstanceName}"
         IamRoleArn: arn:aws:iam::156865266376:role/LabRole
 
-  # CloudFront Distribution and Route53
+  # S3 Bucket for Static Content
   StaticBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "${EnvironmentName}-${AWS::AccountId}-static-assets"
-      WebsiteConfiguration:
-        IndexDocument: index.html
-        ErrorDocument: error.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-StaticContentBucket"
