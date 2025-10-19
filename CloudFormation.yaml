@@ -447,23 +447,21 @@ Resources:
           - !Ref WebServerSG
         UserData:
           Fn::Base64: !Sub |
-             #!/bin/bash -xe
-              yum update -y
-              amazon-linux-extras install -y lamp-mariadb10.2-php7.2 php7.2
-              yum install -y httpd mod_proxy mod_proxy_http
+                 #!/bin/bash -xe
+                  yum update -y
+                  amazon-linux-extras install -y lamp-mariadb10.2-php7.2 php7.2
+                  yum install -y httpd mod_proxy mod_proxy_http
 
-              systemctl start httpd
-              systemctl enable httpd
+                  cat <<EOF > /etc/httpd/conf.d/static-proxy.conf
+                  ProxyPass "/static/" "http://${StaticBucket}.s3.${AWS::Region}.amazonaws.com/static/"
+                  ProxyPassReverse "/static/" "http://${StaticBucket}.s3.${AWS::Region}.amazonaws.com/static/"
+                  EOF
 
-              cat <<EOF > /etc/httpd/conf.d/static-proxy.conf
-              ProxyPass "/static/" "http://${StaticBucket}.s3.${AWS::Region}.amazonaws.com/static/"
-              ProxyPassReverse "/static/" "http://${StaticBucket}.s3.${AWS::Region}.amazonaws.com/static/"
-              EOF
+                  echo "<h1>Web Server - AZ \$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)</h1>" > /var/www/html/index.html
+                  echo "<a href='/static/sample.jpg'>Static File from S3</a>" >> /var/www/html/index.html
 
-              echo "<h1>Web Server (Tier 1) - AZ \$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)</h1>" > /var/www/html/index.html
-              echo "<a href='/static/sample.jpg'>Static File from S3</a>" >> /var/www/html/index.html
-
-              systemctl restart httpd
+                  systemctl enable httpd
+                  systemctl restart httpd
 
   WebAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
